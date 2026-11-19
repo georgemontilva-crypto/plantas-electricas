@@ -128,7 +128,7 @@ function Lines() {
                   <span className="lines__name">{c.name}</span>
                   <span className="lines__blurb">{c.blurb}</span>
                   <span className="lines__img" aria-hidden="true">
-                    <ProductImage slug={HERO[c.id]} />
+                    <ProductImage slug={HERO[c.id]} sizes="160px" />
                   </span>
                   <span className="lines__go">Ver línea</span>
                 </Link>

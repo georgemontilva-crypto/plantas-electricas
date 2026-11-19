@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuote, quoteText } from '../lib/quote';
-import { imageOf, productBySlug, assets } from '../data/products';
+import { productBySlug, assets } from '../data/products';
 import { whatsappLink } from '../config/site';
 import PanelArt from './PanelArt';
 
@@ -50,7 +50,7 @@ export default function QuoteDrawer() {
                 return (
                   <li key={i.slug}>
                     <Link to={`/producto/${p.slug}`} className="drawer__thumb" onClick={() => setOpen(false)}>
-                      {assets[p.slug].mode === 'panel' ? <PanelArt slug={p.slug} /> : <img src={imageOf(p.slug)} alt="" loading="lazy" />}
+                      {assets[p.slug].mode === 'panel' ? <PanelArt slug={p.slug} /> : <img src={`/products/${p.slug}-sm.webp`} alt="" loading="lazy" />}
                     </Link>
                     <div className="drawer__info">
                       <Link to={`/producto/${p.slug}`} onClick={() => setOpen(false)}>

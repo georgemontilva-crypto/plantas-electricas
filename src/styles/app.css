@@ -281,13 +281,25 @@ ul {
   position: fixed;
   inset: 0 0 auto 0;
   z-index: 60;
-  transition: background 0.25s;
 }
 
-.header--solid {
+/* El fondo va en un pseudo-elemento: backdrop-filter en la cabecera misma
+   atraparía al menú móvil (position: fixed) dentro de sus 72 px de alto. */
+.header::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
   background: rgba(0, 0, 0, 0.92);
+  -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+
+.header--solid::before {
+  opacity: 1;
 }
 
 .header__bar {
@@ -2042,13 +2054,59 @@ ul {
     font-size: 1.25rem;
   }
 
+  /* Tienda: filtros en una sola fila deslizable y buscador + orden juntos,
+     para que los equipos aparezcan sin tener que bajar una pantalla entera. */
+  .tabs--wrap {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    margin-inline: calc(var(--gutter) * -1);
+    padding-inline: var(--gutter);
+    scrollbar-width: none;
+  }
+
+  .tabs--wrap::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tabs--wrap button {
+    flex: none;
+  }
+
+  .shop__head {
+    padding-bottom: 1rem;
+  }
+
+  .shop__head .tabs {
+    margin-top: 1.4rem;
+  }
+
+  .shop__tools {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 9.75rem;
+    gap: 0.6rem;
+    margin-top: 0.9rem;
+  }
+
+  .field--search {
+    max-width: none;
+  }
+
   .field--inline {
-    grid-auto-flow: row;
-    width: 100%;
+    display: block;
+  }
+
+  .field--inline > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
   }
 
   .field--inline select {
     min-width: 0;
+    padding-left: 0.7rem;
+    font-size: 0.95rem;
   }
 
   .spec th {

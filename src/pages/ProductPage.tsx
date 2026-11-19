@@ -65,7 +65,7 @@ export default function ProductPage() {
                 </button>
                 {gallery.map((g, i) => (
                   <button key={g.file} type="button" role="tab" aria-selected={view === i + 1} className={view === i + 1 ? 'is-active' : ''} onClick={() => setView(i + 1)}>
-                    <img src={`/products/${g.file}`} alt={`Vista ${i + 2}`} loading="lazy" />
+                    <img src={`/products/${g.file.replace('.webp', '-th.webp')}`} alt={`Vista ${i + 2}`} loading="lazy" />
                   </button>
                 ))}
               </div>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { categories, categoryById, products, productsOf } from '../data/products';
 import ProductCard from '../components/ProductCard';
@@ -35,13 +35,22 @@ export default function Shop() {
 
   const cat = linea ? categoryById(linea) : null;
 
+  // En teléfono los filtros van en una fila deslizable: la línea activa debe quedar a la vista.
+  const tabs = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const row = tabs.current;
+    const active = row?.querySelector<HTMLElement>('.is-active');
+    if (!row || !active) return;
+    row.scrollTo({ left: active.offsetLeft - (row.clientWidth - active.offsetWidth) / 2, behavior: 'auto' });
+  }, [linea]);
+
   return (
     <div className="shop">
       <section className="shop__head">
         <div className="wrap">
           <h1 className="display display--md">{cat ? cat.name : 'Tienda'}</h1>
           <p className="lead">{cat ? cat.blurb : `${products.length} equipos AKX. Entra a cualquiera para girarlo en 3D y leer su ficha técnica.`}</p>
-          <div className="tabs tabs--wrap" role="tablist" aria-label="Línea de producto">
+          <div className="tabs tabs--wrap" role="tablist" aria-label="Línea de producto" ref={tabs}>
             <button type="button" role="tab" aria-selected={!linea} className={!linea ? 'is-active' : ''} onClick={() => setLinea(null)}>
               Todo <small>{products.length}</small>
             </button>
@@ -54,14 +63,14 @@ export default function Shop() {
           <div className="shop__tools">
             <label className="field field--search">
               <span className="sr">Buscar equipo</span>
-              <input type="search" placeholder="Buscar por nombre o modelo" value={q} onChange={(e) => setQ(e.target.value)} />
+              <input type="search" placeholder="Buscar equipo" value={q} onChange={(e) => setQ(e.target.value)} />
             </label>
             <label className="field field--inline">
               <span>Ordenar</span>
               <select value={sort} onChange={(e) => setSort(e.target.value as Sort)}>
                 <option value="linea">Por línea</option>
-                <option value="asc">Potencia: menor a mayor</option>
-                <option value="desc">Potencia: mayor a menor</option>
+                <option value="asc">Menor potencia</option>
+                <option value="desc">Mayor potencia</option>
                 <option value="nombre">Nombre</option>
               </select>
             </label>

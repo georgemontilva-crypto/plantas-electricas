@@ -175,7 +175,22 @@ function Scene({ slug, variant, onReady }: { slug: string; variant: 'viewer' | '
   const shiftX = variant === 'hero' && size.width > 860 ? viewport.width * 0.19 : 0;
   const shiftY = variant === 'hero' && size.width > 860 ? 0.12 : 0;
   // En pantallas angostas el modelo se reduce para que quepa completo al girar.
-  const scale = THREE.MathUtils.clamp(viewport.width / 4.1, 0.5, 1);
+  const scale = THREE.MathUtils.clamp(viewport.width / 3.3, 0.5, 1);
+  // En teléfonos la sombra es una mancha pintada: evita un render extra de la escena por cuadro.
+  const lite = size.width < 700;
+  const blob = useMemo(() => {
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const g = c.getContext('2d')!;
+    const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+    grad.addColorStop(0, 'rgba(0,0,0,0.78)');
+    grad.addColorStop(0.55, 'rgba(0,0,0,0.3)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 128, 128);
+    return new THREE.CanvasTexture(c);
+  }, []);
+  useEffect(() => () => blob.dispose(), [blob]);
   useEffect(() => {
     const id = requestAnimationFrame(() => onReady());
     return () => cancelAnimationFrame(id);
@@ -198,7 +213,14 @@ function Scene({ slug, variant, onReady }: { slug: string; variant: 'viewer' | '
         <Rig mode={asset.mode} variant={variant}>
           <ProductModel slug={slug} asset={asset} />
         </Rig>
-        <ContactShadows position={[0, floorY + 0.004, 0]} opacity={0.75} scale={8} blur={2.6} far={3.2} resolution={512} color="#000000" />
+        {lite ? (
+          <mesh position={[0, floorY + 0.004, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+            <planeGeometry args={[4.2, 2.1]} />
+            <meshBasicMaterial map={blob} transparent depthWrite={false} />
+          </mesh>
+        ) : (
+          <ContactShadows position={[0, floorY + 0.004, 0]} opacity={0.75} scale={8} blur={2.6} far={3.2} resolution={512} color="#000000" />
+        )}
         <EnergyFloor y={floorY} variant={variant} />
       </group>
     </>
@@ -233,6 +255,7 @@ export default function ProductStage({ slug, variant = 'viewer', className = '',
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(() => !webglAvailable());
   const asset = assets[slug];
+  const small = useMemo(() => window.matchMedia('(max-width: 700px)').matches, []);
 
   useEffect(() => {
     const el = wrap.current;
@@ -259,9 +282,9 @@ export default function ProductStage({ slug, variant = 'viewer', className = '',
         <Boundary onError={() => setFailed(true)}>
           <Canvas
             className="stage__canvas"
-            dpr={[1, 1.75]}
+            dpr={[1, small ? 1.5 : 1.75]}
             frameloop={visible ? 'always' : 'never'}
-            camera={{ fov: 27, position: [0, 0.18, variant === 'hero' ? 8.4 : 7.5], near: 0.1, far: 60 }}
+            camera={{ fov: 27, position: [0, 0.18, variant === 'hero' ? (small ? 7.2 : 8.4) : 7.5], near: 0.1, far: 60 }}
             gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
             onCreated={({ gl }) => {
               gl.toneMapping = THREE.ACESFilmicToneMapping;

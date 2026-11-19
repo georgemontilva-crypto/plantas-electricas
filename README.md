@@ -40,7 +40,7 @@ Sin ellas, el formulario avisa al visitante que el mensaje no se envió y le ofr
 
 - `src/data/products.ts`: nombre, modelo, textos, datos destacados y ficha técnica de cada equipo. Todo sale de las fichas técnicas en PDF de la marca.
 - `src/data/assets.json`: datos del modelo 3D de cada equipo (se genera, no se edita a mano).
-- `public/products/`: fotos recortadas (`.webp`), vistas extra (`-g1`, `-g2`…) y mapas de profundidad (`-depth.png`).
+- `public/products/`: fotos recortadas (`.webp`), su versión liviana de 560 px para tarjetas y móvil (`-sm.webp`), vistas extra (`-g1`, `-g2`…) con miniatura (`-th.webp`) y mapas de profundidad (`-depth.png`).
 
 ## Cómo está hecho el 3D
 
