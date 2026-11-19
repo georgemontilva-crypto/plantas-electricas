@@ -47,7 +47,7 @@ Sin ellas, el formulario avisa al visitante que el mensaje no se envió y le ofr
 No hay archivos de modelos 3D de fábrica; los modelos se arman en el navegador a partir de las fotos de las fichas:
 
 - **Extrusión** (inversores, baterías, estaciones 800 y 2400, plantas diésel): la foto frontal se convierte en un sólido con el contorno real del equipo y el fondo proporcional a sus medidas. Gira unos 50° a cada lado.
-- **Relieve** (plantas portátiles, estación 6000): la foto en ¾ se desplaza con un mapa de profundidad estimado. Gira unos 24° a cada lado.
+- **Relieve** (plantas portátiles, estación 6000): la foto en ¾ se desplaza con un mapa de profundidad estimado. Gira unos 17° a cada lado.
 - **Panel solar**: modelo procedural con las celdas y proporciones de la ficha. Gira 360°.
 
 Si WebGL no está disponible, el visor muestra la foto del equipo.

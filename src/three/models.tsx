@@ -126,7 +126,10 @@ export function ReliefModel({ url, depthUrl, asset }: { url: string; depthUrl: s
     const long = 200;
     const nx = Math.max(2, Math.round(dw >= dh ? long : (long * dw) / dh));
     const ny = Math.max(2, Math.round(dh >= dw ? long : (long * dh) / dw));
-    const zs = Math.min(W, H) * 0.42;
+    const zs = Math.min(W, H) * 0.27;
+    // El mapa trae un zócalo en el borde de la silueta; se recorta para que el canto
+    // no se estire como una pared al girar.
+    const lift = (d: number) => Math.max(0, d - 0.2) / 0.8;
     const sample = (u: number, v: number) => {
       const x = Math.min(dw - 1, Math.max(0, u * (dw - 1)));
       const y = Math.min(dh - 1, Math.max(0, v * (dh - 1)));
@@ -146,12 +149,13 @@ export function ReliefModel({ url, depthUrl, asset }: { url: string; depthUrl: s
         const k = j * (nx + 1) + i;
         const u = i / nx, v = j / ny;
         const d = sample(u, v);
+        const z = lift(d) * zs;
         pos[k * 3] = (u - 0.5) * W;
         pos[k * 3 + 1] = (0.5 - v) * H;
-        pos[k * 3 + 2] = d * zs;
+        pos[k * 3 + 2] = z;
         back[k * 3] = pos[k * 3];
         back[k * 3 + 1] = pos[k * 3 + 1];
-        back[k * 3 + 2] = -d * zs * 0.45;
+        back[k * 3 + 2] = -z * 0.45;
         uv[k * 2] = u;
         uv[k * 2 + 1] = 1 - v;
         inside[k] = d > 0.012 ? 1 : 0;
@@ -177,7 +181,7 @@ export function ReliefModel({ url, depthUrl, asset }: { url: string; depthUrl: s
     };
     const front = mk(pos, idx);
     const rear = mk(back, idxBack);
-    const offset = -zs * 0.3;
+    const offset = -zs * 0.45;
     front.translate(0, 0, offset);
     rear.translate(0, 0, offset);
     return { front, rear };

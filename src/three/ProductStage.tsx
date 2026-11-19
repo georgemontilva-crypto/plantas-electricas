@@ -28,11 +28,18 @@ function Rig({ mode, variant, children }: RigProps) {
   const { gl } = useThree();
   const state = useRef({ dragging: false, x: 0, y: 0, az: 0, pol: 0, taz: 0, tpol: 0, last: 0, hx: 0, hy: 0 });
 
+  // Giro máximo (radianes) y vaivén en reposo. En el hero el giro es más corto
+  // para que la foto no se deforme: es una pieza de presentación, no el visor.
   const limits = useMemo(() => {
-    if (mode === 'panel') return { az: Infinity, pol: 0.5 };
-    if (mode === 'extrude') return { az: 0.9, pol: 0.38 };
-    return { az: 0.42, pol: 0.2 };
-  }, [mode]);
+    if (variant === 'hero') {
+      if (mode === 'panel') return { az: 0.55, pol: 0.2, sway: 0.36 };
+      if (mode === 'extrude') return { az: 0.4, pol: 0.15, sway: 0.22 };
+      return { az: 0.17, pol: 0.07, sway: 0.09 };
+    }
+    if (mode === 'panel') return { az: Infinity, pol: 0.5, sway: 0.95 };
+    if (mode === 'extrude') return { az: 0.9, pol: 0.38, sway: 0.55 };
+    return { az: 0.3, pol: 0.14, sway: 0.2 };
+  }, [mode, variant]);
 
   useEffect(() => {
     const el = gl.domElement;
@@ -94,14 +101,13 @@ function Rig({ mode, variant, children }: RigProps) {
     let az = s.taz;
     let pol = s.tpol;
     if (idle) {
-      {
-        const sway = mode === 'panel' ? 0.95 : mode === 'extrude' ? 0.55 : 0.3;
-        const base = Math.sin(t * 0.45) * sway;
-        s.taz += (base + s.hx * Math.min(limits.az, 1) * 0.35 - s.taz) * Math.min(1, dt * 0.9);
-        s.tpol += (Math.sin(t * 0.33) * 0.05 + s.hy * limits.pol * 0.5 - s.tpol) * Math.min(1, dt * 0.9);
-        az = s.taz;
-        pol = s.tpol;
-      }
+      const cap = Math.min(limits.az, 1);
+      const wantAz = THREE.MathUtils.clamp(Math.sin(t * 0.45) * limits.sway + s.hx * cap * 0.35, -cap, cap);
+      const wantPol = THREE.MathUtils.clamp(Math.sin(t * 0.33) * limits.pol * 0.25 + s.hy * limits.pol * 0.5, -limits.pol, limits.pol);
+      s.taz += (wantAz - s.taz) * Math.min(1, dt * 0.9);
+      s.tpol += (wantPol - s.tpol) * Math.min(1, dt * 0.9);
+      az = s.taz;
+      pol = s.tpol;
     }
     const k = Math.min(1, dt * 7);
     s.az += (az - s.az) * k;
