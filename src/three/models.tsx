@@ -298,8 +298,22 @@ export function PanelModel({ asset }: { asset: ProductAsset }) {
   );
 }
 
+/* ─────────── Foto: la imagen del equipo tal cual, sin relieve ─────────── */
+
+export function PhotoModel({ url, asset }: { url: string; asset: ProductAsset }) {
+  const tex = usePhoto(url);
+  const [W, H] = fit(asset.w / asset.h);
+  return (
+    <mesh>
+      <planeGeometry args={[W, H]} />
+      <meshBasicMaterial map={tex} transparent toneMapped={false} />
+    </mesh>
+  );
+}
+
 export function ProductModel({ slug, asset }: { slug: string; asset: ProductAsset }) {
   const url = `/products/${slug}.webp`;
+  if (asset.mode === 'photo') return <PhotoModel url={url} asset={asset} />;
   if (asset.mode === 'panel') return <PanelModel asset={asset} />;
   if (asset.mode === 'relief' && asset.depth) return <ReliefModel url={url} depthUrl={`/products/${asset.depth}`} asset={asset} />;
   return <ExtrudeModel url={url} asset={asset} />;

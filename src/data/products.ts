@@ -71,7 +71,7 @@ export interface Product {
   note?: string;
 }
 
-export type ModelMode = 'extrude' | 'relief' | 'panel';
+export type ModelMode = 'extrude' | 'relief' | 'panel' | 'photo';
 
 export interface ProductAsset {
   w: number;

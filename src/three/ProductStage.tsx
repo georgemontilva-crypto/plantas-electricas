@@ -2,7 +2,7 @@ import { Component, Suspense, useEffect, useMemo, useRef, useState, type ReactNo
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { ContactShadows, Environment, Lightformer } from '@react-three/drei';
 import * as THREE from 'three';
-import { assets, imageOf } from '../data/products';
+import { assets, imageOf, type ModelMode } from '../data/products';
 import { ProductModel, modelHeight } from './models';
 
 export const GREEN = '#A6DB40';
@@ -17,7 +17,7 @@ interface StageProps {
 }
 
 interface RigProps {
-  mode: 'extrude' | 'relief' | 'panel';
+  mode: ModelMode;
   variant: 'viewer' | 'hero';
   children: ReactNode;
 }
@@ -31,6 +31,7 @@ function Rig({ mode, variant, children }: RigProps) {
   // Giro máximo (radianes) y vaivén en reposo. En el hero el giro es más corto
   // para que la foto no se deforme: es una pieza de presentación, no el visor.
   const limits = useMemo(() => {
+    if (mode === 'photo') return { az: 0, pol: 0, sway: 0 };
     if (variant === 'hero') {
       if (mode === 'panel') return { az: 0.55, pol: 0.2, sway: 0.36 };
       if (mode === 'extrude') return { az: 0.4, pol: 0.15, sway: 0.22 };
@@ -75,6 +76,10 @@ function Rig({ mode, variant, children }: RigProps) {
       s.hx = ((e.clientX - r.left) / r.width - 0.5) * 2;
       s.hy = ((e.clientY - r.top) / r.height - 0.5) * 2;
     };
+    if (mode === 'photo') {
+      el.style.cursor = 'default';
+      return;
+    }
     el.style.cursor = 'grab';
     el.style.touchAction = 'pan-y';
     el.addEventListener('pointerdown', down);
@@ -269,7 +274,7 @@ export default function ProductStage({ slug, variant = 'viewer', className = '',
           </Canvas>
         </Boundary>
       )}
-      {!failed && <span className="stage__hint" aria-hidden="true">Arrastra para girar</span>}
+      {!failed && asset.mode !== 'photo' && <span className="stage__hint" aria-hidden="true">Arrastra para girar</span>}
     </div>
   );
 }

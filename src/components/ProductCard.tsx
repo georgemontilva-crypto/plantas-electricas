@@ -1,7 +1,7 @@
 import { useRef, type PointerEvent } from 'react';
 import { Link } from 'react-router-dom';
 import type { Product } from '../data/products';
-import { categoryById } from '../data/products';
+import { assets, categoryById } from '../data/products';
 import { useQuote } from '../lib/quote';
 import ProductImage from './ProductImage';
 
@@ -39,7 +39,7 @@ export default function ProductCard({ product, eager = false }: { product: Produ
         <span className="card__figure">
           <ProductImage slug={product.slug} eager={eager} />
         </span>
-        <span className="card__view">Ver en 3D</span>
+        <span className="card__view">{assets[product.slug].mode === 'photo' ? 'Ver ficha' : 'Ver en 3D'}</span>
       </Link>
       <div className="card__body">
         <p className="card__model">{product.model}</p>

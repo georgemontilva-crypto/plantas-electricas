@@ -30,12 +30,15 @@ export default function ProductPage() {
   const related = products.filter((p) => p.category === product.category && p.slug !== product.slug).slice(0, 4);
   const wa = whatsappLink(`Hola, quiero información del ${product.name} (${product.model}).`);
   const inQuote = has(product.slug);
+  const is3d = asset.mode !== 'photo';
   const hint =
-    asset.mode === 'panel'
-      ? 'Modelo 3D. Arrástralo para girarlo completo.'
-      : asset.mode === 'extrude'
-        ? 'Modelo 3D armado con la foto y las medidas reales del equipo.'
-        : 'Vista 3D en relieve generada desde la foto del equipo.';
+    asset.mode === 'photo'
+      ? ''
+      : asset.mode === 'panel'
+        ? 'Modelo 3D. Arrástralo para girarlo completo.'
+        : asset.mode === 'extrude'
+          ? 'Modelo 3D armado con la foto y las medidas reales del equipo.'
+          : 'Vista 3D en relieve generada desde la foto del equipo.';
 
   return (
     <div className="product">
@@ -52,13 +55,13 @@ export default function ProductPage() {
                   <img src={`/products/${gallery[view - 1].file}`} alt={`${product.name}, vista ${view + 1}`} />
                 </div>
               )}
-              <span className="viewer__badge">{view === 0 ? '3D' : 'Foto'}</span>
+              {(is3d || view > 0) && <span className="viewer__badge">{view === 0 ? '3D' : 'Foto'}</span>}
             </div>
-            <p className="viewer__note">{hint}</p>
+            {hint && <p className="viewer__note">{hint}</p>}
             {gallery.length > 0 && (
               <div className="thumbs" role="tablist" aria-label="Vistas del equipo">
                 <button type="button" role="tab" aria-selected={view === 0} className={`thumbs__3d ${view === 0 ? 'is-active' : ''}`} onClick={() => setView(0)}>
-                  3D
+                  {is3d ? '3D' : 'Foto'}
                 </button>
                 {gallery.map((g, i) => (
                   <button key={g.file} type="button" role="tab" aria-selected={view === i + 1} className={view === i + 1 ? 'is-active' : ''} onClick={() => setView(i + 1)}>
