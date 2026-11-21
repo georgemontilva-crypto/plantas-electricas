@@ -53,6 +53,16 @@ No hay archivos de modelos 3D de fábrica; los modelos se arman en el navegador 
 
 Si WebGL no está disponible, el visor muestra la foto del equipo.
 
+## Despiece con scroll
+
+Las plantas diésel (AKX 20 y AKX 27.5) tienen en su ficha una sección "Por dentro": al bajar la página la cabina se levanta y el equipo se abre en ocho piezas (cabina, motor, radiador, alternador, control, base y tanque, batería y escape).
+
+- `src/data/despiece.ts`: nombre, texto y datos de cada pieza por equipo. Los datos salen de la ficha técnica.
+- `src/three/ExplodedGenset.tsx`: el modelo. La cabina es el sólido real del producto; las piezas internas son una representación esquemática hecha con formas básicas, a escala de la cabina.
+- `src/components/Despiece.tsx`: la sección fija, el panel de datos y la barra de piezas.
+
+Para sumarle despiece a otro equipo de cabina cerrada basta con agregar su entrada en `despiece.ts`. Sin WebGL, la sección muestra las mismas piezas como lista.
+
 ## Despliegue en Railway
 
 1. New Project → Deploy from GitHub repo → este repositorio.

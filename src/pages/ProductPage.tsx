@@ -3,10 +3,12 @@ import { Link, useParams } from 'react-router-dom';
 import { assets, categoryById, productBySlug, products } from '../data/products';
 import { useQuote } from '../lib/quote';
 import { whatsappLink } from '../config/site';
+import { despiece } from '../data/despiece';
 import ProductCard from '../components/ProductCard';
 import NotFound from './NotFound';
 
 const ProductStage = lazy(() => import('../three/ProductStage'));
+const Despiece = lazy(() => import('../components/Despiece'));
 
 export default function ProductPage() {
   const { slug = '' } = useParams();
@@ -135,6 +137,12 @@ export default function ProductPage() {
           </div>
         </div>
       </section>
+
+      {despiece[product.slug] && (
+        <Suspense fallback={null}>
+          <Despiece slug={product.slug} nombre={product.name} />
+        </Suspense>
+      )}
 
       <section className="section section--light product__specs">
         <div className="wrap">

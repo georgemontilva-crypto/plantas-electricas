@@ -26,11 +26,21 @@ function usePhoto(url: string) {
 
 /* ─────────── Extrusión: foto frontal + contorno + fondo real ─────────── */
 
-export function ExtrudeModel({ url, asset }: { url: string; asset: ProductAsset }) {
+/** Sólido extruido del equipo: geometría, materiales y medidas en unidades de escena. */
+export function useExtrudeSolid(url: string, asset: ProductAsset) {
   const tex = usePhoto(url);
   const [W, H] = fit(asset.w / asset.h);
   const dims = asset.dims ?? [1, 1, 0.3];
-  const depth = Math.min(Math.max((W * dims[2]) / dims[0], 0.12), 1.5);
+  // Caja real de la silueta dentro de la foto (la foto puede traer margen o sombra)
+  const box = useMemo(() => {
+    const c = asset.contour ?? [];
+    if (!c.length) return { cx: 0, cy: 0, w: W, h: H };
+    const xs = c.map((q) => q[0]);
+    const ys = c.map((q) => q[1]);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    return { cx: ((x0 + x1) / 2 - 0.5) * W, cy: (0.5 - (y0 + y1) / 2) * H, w: (x1 - x0) * W, h: (y1 - y0) * H };
+  }, [asset, W, H]);
+  const depth = Math.min(Math.max((box.w * dims[2]) / dims[0], 0.12), 1.5);
 
   const geometry = useMemo(() => {
     const pts = (asset.contour ?? []).map(([x, y]) => new THREE.Vector2((x - 0.5) * W, (0.5 - y) * H));
@@ -87,6 +97,11 @@ export function ExtrudeModel({ url, asset }: { url: string; asset: ProductAsset 
 
   useEffect(() => () => materials.forEach((m) => m.dispose()), [materials]);
 
+  return { geometry, materials, W, H, depth, box };
+}
+
+export function ExtrudeModel({ url, asset }: { url: string; asset: ProductAsset }) {
+  const { geometry, materials } = useExtrudeSolid(url, asset);
   return <mesh geometry={geometry} material={materials} castShadow />;
 }
 
