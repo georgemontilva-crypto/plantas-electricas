@@ -61,6 +61,8 @@ Las plantas diésel (AKX 20 y AKX 27.5) tienen en su ficha una sección "Por den
 - `src/three/ExplodedGenset.tsx`: el modelo. La cabina es el sólido real del producto; las piezas internas son una representación esquemática hecha con formas básicas, a escala de la cabina.
 - `src/components/Despiece.tsx`: la sección fija, el panel de datos y la barra de piezas.
 
+Al tocar una pieza (o con el botón "Acercar pieza") la cámara se acerca a ella y las demás se desvanecen; "Alejar", un segundo toque o seguir bajando la devuelve a la vista general. El largo del recorrido se ajusta en `.despiece { height }` de `src/styles/app.css` (34svh por pieza en escritorio, 28svh en teléfono).
+
 Para sumarle despiece a otro equipo de cabina cerrada basta con agregar su entrada en `despiece.ts`. Sin WebGL, la sección muestra las mismas piezas como lista.
 
 ## Despliegue en Railway

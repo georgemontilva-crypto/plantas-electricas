@@ -22,14 +22,22 @@ interface Mats {
   dark: THREE.MeshStandardMaterial;
   light: THREE.MeshStandardMaterial;
   edge: THREE.LineBasicMaterial;
+  green: THREE.MeshBasicMaterial;
+  red: THREE.MeshBasicMaterial;
+  white: THREE.MeshBasicMaterial;
   base: Record<Tone, THREE.Color>;
 }
+
+type Accent = 'green' | 'red' | 'white';
+const ALL_MATS = ['main', 'dark', 'light', 'edge', 'green', 'red', 'white'] as const;
 
 interface Handle {
   group: THREE.Group;
   mats: Mats;
   out: THREE.Vector3;
   glow: number;
+  /** 1 visible, 0 oculta: las demás piezas se desvanecen al acercar una */
+  fade: number;
 }
 
 type Registry = MutableRefObject<Map<PiezaId, Handle>>;
@@ -44,16 +52,29 @@ function makeMats(): Mats {
     dark: mk('#262a26', 0.5, 0.6),
     light: mk('#9aa19a', 0.75, 0.34),
     edge: new THREE.LineBasicMaterial({ color: EDGE, transparent: true, opacity: 0.7 }),
+    green: new THREE.MeshBasicMaterial({ color: '#A6DB40' }),
+    red: new THREE.MeshBasicMaterial({ color: '#e5402f' }),
+    white: new THREE.MeshBasicMaterial({ color: '#dfe3df' }),
     base: { main: new THREE.Color('#565c56'), dark: new THREE.Color('#262a26'), light: new THREE.Color('#9aa19a') },
   };
 }
 
+interface Picking {
+  /** true cuando la planta ya está abierta y las piezas se pueden tocar */
+  open: MutableRefObject<boolean>;
+  onPick: (id: PiezaId) => void;
+}
+
+const PickCtx = createContext<Picking | null>(null);
+
 function Part({ id, out, registry, position, children }: { id: PiezaId; out: V3; registry: Registry; position: V3; children: ReactNode }) {
+  const pick = useContext(PickCtx);
+  const gl = useThree((st) => st.gl);
   const ref = useRef<THREE.Group>(null);
   const mats = useMemo(makeMats, []);
   useEffect(() => {
     const map = registry.current;
-    if (ref.current) map.set(id, { group: ref.current, mats, out: new THREE.Vector3(...out), glow: 0 });
+    if (ref.current) map.set(id, { group: ref.current, mats, out: new THREE.Vector3(...out), glow: 0, fade: 1 });
     return () => {
       map.delete(id);
     };
@@ -61,16 +82,29 @@ function Part({ id, out, registry, position, children }: { id: PiezaId; out: V3;
   }, [id, mats, registry, out[0], out[1], out[2]]);
   useEffect(
     () => () => {
-      mats.main.dispose();
-      mats.dark.dispose();
-      mats.light.dispose();
-      mats.edge.dispose();
+      ALL_MATS.forEach((k) => mats[k].dispose());
     },
     [mats],
   );
   return (
     <group position={position}>
-      <group ref={ref}>
+      <group
+        ref={ref}
+        onClick={(ev) => {
+          if (!pick?.open.current) return;
+          ev.stopPropagation();
+          if (ev.delta > 8) return; // fue un arrastre, no un toque
+          pick.onPick(id);
+        }}
+        onPointerOver={(ev) => {
+          if (!pick?.open.current) return;
+          ev.stopPropagation();
+          gl.domElement.style.cursor = 'pointer';
+        }}
+        onPointerOut={() => {
+          gl.domElement.style.cursor = '';
+        }}
+      >
         <PartCtx.Provider value={mats}>{children}</PartCtx.Provider>
       </group>
     </group>
@@ -86,14 +120,15 @@ function Solid({
   tone = 'main',
   position,
   rotation,
-  material,
+  accent,
 }: {
   kind?: Kind;
   args: number[];
   tone?: Tone;
   position?: V3;
   rotation?: V3;
-  material?: THREE.Material;
+  /** detalle de color plano (pantalla, botón, borne), sin aristas */
+  accent?: Accent;
 }) {
   const mats = useContext(PartCtx)!;
   const key = args.map((n) => n.toFixed(4)).join(',');
@@ -119,8 +154,8 @@ function Solid({
   );
   return (
     <group position={position} rotation={rotation}>
-      <mesh geometry={geo} material={material ?? mats[tone]} />
-      {edges && !material && <lineSegments geometry={edges} material={mats.edge} />}
+      <mesh geometry={geo} material={accent ? mats[accent] : mats[tone]} />
+      {edges && !accent && <lineSegments geometry={edges} material={mats.edge} raycast={noRaycast} />}
     </group>
   );
 }
@@ -139,8 +174,10 @@ function Fins({ x, h, d, n = 26 }: { x: number; h: number; d: number; n?: number
     return g;
   }, [x, h, d, n]);
   useEffect(() => () => geo.dispose(), [geo]);
-  return <lineSegments geometry={geo} material={mats.edge} />;
+  return <lineSegments geometry={geo} material={mats.edge} raycast={noRaycast} />;
 }
+
+const noRaycast = () => null;
 
 const smooth = (a: number, b: number, x: number) => {
   const t = THREE.MathUtils.clamp((x - a) / (b - a), 0, 1);
@@ -151,9 +188,15 @@ interface SceneProps {
   slug: string;
   progress: MutableRefObject<number>;
   drag: MutableRefObject<number>;
+  /** pieza a la que la cámara debe acercarse, o null */
+  zoom: MutableRefObject<PiezaId | null>;
+  onPick: (id: PiezaId) => void;
 }
 
-function Scene({ slug, progress, drag }: SceneProps) {
+const CAM_DIR = new THREE.Vector3(0, 1.9, 10.5).normalize();
+const CAM_DIST = Math.hypot(1.9, 10.5);
+
+function Scene({ slug, progress, drag, zoom, onPick }: SceneProps) {
   const asset = assets[slug];
   const { geometry, materials, depth: D, box } = useExtrudeSolid(`/products/${slug}.webp`, asset);
   // Las piezas se dimensionan con la caja real de la cabina, no con la foto completa
@@ -163,7 +206,10 @@ function Scene({ slug, progress, drag }: SceneProps) {
   const rig = useRef<THREE.Group>(null);
   const canopy = useRef<THREE.Mesh>(null);
   const fan = useRef<THREE.Group>(null);
-  const { viewport, size } = useThree();
+  const { viewport, size, camera } = useThree();
+  const open = useRef(false);
+  const picking = useMemo(() => ({ open, onPick }), [onPick]);
+  const cam = useRef({ look: new THREE.Vector3(), dist: CAM_DIST, want: new THREE.Vector3(), tmp: new THREE.Vector3() });
 
   const narrow = size.width < 760;
   // En escritorio la tarjeta de datos ocupa ~420 px a la izquierda: el conjunto se ajusta y se centra en el resto
@@ -173,23 +219,6 @@ function Scene({ slug, progress, drag }: SceneProps) {
   const norm = Math.min(2.9 / L, 1.5 / H);
   const shiftX = (viewport.width * side) / 2;
   const shiftY = narrow ? viewport.height * 0.13 : 0.1;
-
-  const accents = useMemo(
-    () => ({
-      green: new THREE.MeshBasicMaterial({ color: '#A6DB40' }),
-      red: new THREE.MeshBasicMaterial({ color: '#e5402f' }),
-      white: new THREE.MeshStandardMaterial({ color: '#e8ebe8', roughness: 0.5 }),
-    }),
-    [],
-  );
-  useEffect(
-    () => () => {
-      accents.green.dispose();
-      accents.red.dispose();
-      accents.white.dispose();
-    },
-    [accents],
-  );
 
   useEffect(() => {
     materials.forEach((m) => {
@@ -216,9 +245,24 @@ function Scene({ slug, progress, drag }: SceneProps) {
     }
 
     const focusing = e > 0.5 && active !== 'cabina';
+    const zoomId = e > 0.6 ? zoom.current : null;
     registry.current.forEach((h, id) => {
       h.group.position.copy(h.out).multiplyScalar(e);
-      h.glow += ((focusing && id === active ? 1 : 0) - h.glow) * k;
+      // de cerca el verde baja para que se lean las formas de la pieza
+      h.glow += ((focusing && id === active ? (zoomId ? 0.22 : 1) : 0) - h.glow) * k;
+      // al acercar una pieza, las demás se desvanecen para no tapar la vista
+      h.fade += ((zoomId && id !== zoomId ? 0 : 1) - h.fade) * Math.min(1, dt * 7);
+      const solid = h.fade > 0.99;
+      h.group.visible = h.fade > 0.03;
+      ALL_MATS.forEach((n) => {
+        if (n === 'edge') return;
+        const m = h.mats[n];
+        if (m.transparent === solid) {
+          m.transparent = !solid;
+          m.needsUpdate = true;
+        }
+        m.opacity = h.fade;
+      });
       const dim = focusing ? 1 - h.glow : 0;
       (['main', 'dark', 'light'] as Tone[]).forEach((t) => {
         const m = h.mats[t];
@@ -226,7 +270,7 @@ function Scene({ slug, progress, drag }: SceneProps) {
         m.emissive.copy(GREEN).multiplyScalar(h.glow * 0.2);
       });
       h.mats.edge.color.copy(EDGE).lerp(GREEN, h.glow);
-      h.mats.edge.opacity = 0.7 - dim * 0.42 + h.glow * 0.3;
+      h.mats.edge.opacity = (0.7 - dim * 0.42 + h.glow * 0.3) * h.fade;
     });
 
     const r = rig.current;
@@ -236,11 +280,40 @@ function Scene({ slug, progress, drag }: SceneProps) {
       r.scale.setScalar(fitScale * norm * THREE.MathUtils.lerp(narrow ? 1.5 : 1.55, narrow ? 1 : 1.3, e));
     }
     if (fan.current) fan.current.rotation.x += dt * 2.4;
+
+    // Cámara: vista general, o acercamiento a la pieza tocada
+    open.current = e > 0.6;
+    const cs = cam.current;
+    const target = open.current && zoom.current ? registry.current.get(zoom.current) : undefined;
+    let wantDist = CAM_DIST;
+    cs.want.set(0, 0, 0);
+    if (target && r) {
+      target.group.getWorldPosition(cs.tmp);
+      wantDist = Math.max(2.3, radius[zoom.current as PiezaId] * r.scale.x * (narrow ? 10 : 5.6));
+      // el encuadre conserva el mismo desplazamiento que deja libre la tarjeta de datos
+      cs.want.set(cs.tmp.x - shiftX * (wantDist / CAM_DIST), cs.tmp.y - shiftY * (wantDist / CAM_DIST), cs.tmp.z);
+    }
+    const ck = Math.min(1, dt * 4);
+    cs.look.lerp(cs.want, ck);
+    cs.dist += (wantDist - cs.dist) * ck;
+    camera.position.copy(CAM_DIR).multiplyScalar(cs.dist).add(cs.look);
+    camera.lookAt(cs.look);
   });
 
   // Medidas de cada conjunto, relativas a la cabina (L largo, H alto, D fondo)
   const bl = 0.34 * L, bh = 0.3 * H, bd = 0.42 * D; // bloque del motor
   const fr = 0.2 * H; // radio del ventilador
+  // Radio aproximado de cada pieza, para decidir cuánto se acerca la cámara
+  const radius: Record<PiezaId, number> = {
+    cabina: 0.6 * L,
+    motor: 0.27 * L,
+    radiador: 0.36 * H,
+    alternador: 0.2 * L,
+    control: 0.13 * L,
+    base: 0.52 * L,
+    bateria: 0.09 * L,
+    escape: 0.24 * L,
+  };
 
   return (
     <>
@@ -255,10 +328,11 @@ function Scene({ slug, progress, drag }: SceneProps) {
         <Lightformer intensity={1.2} position={[0, 0.5, 7]} scale={[7, 3, 1]} />
       </Environment>
 
+      <PickCtx.Provider value={picking}>
       <group position={[shiftX, shiftY, 0]}>
         <group ref={rig}>
           <group position={[-box.cx, -box.cy, 0]}>
-            <mesh ref={canopy} geometry={geometry} material={materials} renderOrder={2} />
+            <mesh ref={canopy} geometry={geometry} material={materials} renderOrder={2} raycast={noRaycast} />
           </group>
 
           {/* Base y tanque */}
@@ -270,7 +344,7 @@ function Scene({ slug, progress, drag }: SceneProps) {
             ))}
             <Solid args={[0.6 * L, 0.075 * H, 0.64 * D]} position={[0.02 * L, 0, 0]} tone="light" />
             <Solid kind="cyl" args={[0.028 * D, 0.05 * H]} position={[0.26 * L, 0.055 * H, 0.2 * D]} tone="main" />
-            <Solid kind="cyl" args={[0.036 * D, 0.014 * H]} position={[0.26 * L, 0.086 * H, 0.2 * D]} material={accents.green} />
+            <Solid kind="cyl" args={[0.036 * D, 0.014 * H]} position={[0.26 * L, 0.086 * H, 0.2 * D]} accent="green" />
           </Part>
 
           {/* Motor */}
@@ -326,11 +400,11 @@ function Scene({ slug, progress, drag }: SceneProps) {
           {/* Tablero de control */}
           <Part id="control" registry={registry} position={[-0.36 * L, 0.2 * H, 0.36 * D]} out={[-0.2 * L, 0.42 * H, 0.75 * D]}>
             <Solid args={[0.16 * L, 0.3 * H, 0.1 * D]} tone="dark" />
-            <Solid args={[0.085 * L, 0.1 * H, 0.012 * D]} position={[-0.02 * L, 0.06 * H, 0.052 * D]} material={accents.green} />
+            <Solid args={[0.085 * L, 0.1 * H, 0.012 * D]} position={[-0.02 * L, 0.06 * H, 0.052 * D]} accent="green" />
             {[-0.045, -0.02, 0.005].map((x) => (
-              <Solid key={x} kind="cylZ" args={[0.012 * H, 0.02 * D]} position={[x * L, -0.07 * H, 0.055 * D]} material={accents.white} />
+              <Solid key={x} kind="cylZ" args={[0.012 * H, 0.02 * D]} position={[x * L, -0.07 * H, 0.055 * D]} accent="white" />
             ))}
-            <Solid kind="cylZ" args={[0.024 * H, 0.03 * D]} position={[0.05 * L, -0.06 * H, 0.06 * D]} material={accents.red} />
+            <Solid kind="cylZ" args={[0.024 * H, 0.03 * D]} position={[0.05 * L, -0.06 * H, 0.06 * D]} accent="red" />
             <Solid args={[0.03 * L, 0.05 * H, 0.014 * D]} position={[0.052 * L, 0.08 * H, 0.052 * D]} tone="light" />
           </Part>
 
@@ -338,8 +412,8 @@ function Scene({ slug, progress, drag }: SceneProps) {
           <Part id="bateria" registry={registry} position={[0.2 * L, -0.3 * H, 0.33 * D]} out={[0.12 * L, -0.12 * H, 0.95 * D]}>
             <Solid args={[0.11 * L, 0.11 * H, 0.14 * D]} tone="dark" />
             <Solid args={[0.112 * L, 0.02 * H, 0.142 * D]} position={[0, 0.05 * H, 0]} tone="main" />
-            <Solid kind="cyl" args={[0.014 * D, 0.03 * H]} position={[-0.035 * L, 0.075 * H, 0]} material={accents.red} />
-            <Solid kind="cyl" args={[0.014 * D, 0.03 * H]} position={[0.035 * L, 0.075 * H, 0]} material={accents.white} />
+            <Solid kind="cyl" args={[0.014 * D, 0.03 * H]} position={[-0.035 * L, 0.075 * H, 0]} accent="red" />
+            <Solid kind="cyl" args={[0.014 * D, 0.03 * H]} position={[0.035 * L, 0.075 * H, 0]} accent="white" />
           </Part>
 
           {/* Escape */}
@@ -352,11 +426,22 @@ function Scene({ slug, progress, drag }: SceneProps) {
           </Part>
         </group>
       </group>
+      </PickCtx.Provider>
     </>
   );
 }
 
-export default function ExplodedGenset({ slug, progress }: { slug: string; progress: MutableRefObject<number> }) {
+export default function ExplodedGenset({
+  slug,
+  progress,
+  zoom,
+  onPick,
+}: {
+  slug: string;
+  progress: MutableRefObject<number>;
+  zoom: MutableRefObject<PiezaId | null>;
+  onPick: (id: PiezaId) => void;
+}) {
   const wrap = useRef<HTMLDivElement>(null);
   const drag = useRef(0);
   const small = useMemo(() => window.matchMedia('(max-width: 760px)').matches, []);
@@ -403,7 +488,7 @@ export default function ExplodedGenset({ slug, progress }: { slug: string; progr
         }}
       >
         <Suspense fallback={null}>
-          <Scene slug={slug} progress={progress} drag={drag} />
+          <Scene slug={slug} progress={progress} drag={drag} zoom={zoom} onPick={onPick} />
         </Suspense>
       </Canvas>
     </div>

@@ -1,5 +1,5 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { despiece, piezaEnProgreso, progresoDePieza } from '../data/despiece';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { despiece, piezaEnProgreso, progresoDePieza, type PiezaId } from '../data/despiece';
 
 const ExplodedGenset = lazy(() => import('../three/ExplodedGenset'));
 
@@ -22,6 +22,17 @@ export default function Despiece({ slug, nombre }: { slug: string; nombre: strin
   const gl = useMemo(webglAvailable, []);
   const total = piezas.length;
 
+  // Acercamiento: la pieza a la que mira la cámara. `arrived` evita soltarlo
+  // mientras el scroll todavía viaja hacia esa pieza.
+  const zoom = useRef<PiezaId | null>(null);
+  const arrived = useRef(false);
+  const [zoomed, setZoomed] = useState<PiezaId | null>(null);
+  const unzoom = useCallback(() => {
+    zoom.current = null;
+    arrived.current = false;
+    setZoomed(null);
+  }, []);
+
   useEffect(() => {
     if (!gl) return;
     let raf = 0;
@@ -36,9 +47,19 @@ export default function Despiece({ slug, nombre }: { slug: string; nombre: strin
       if (bar.current) bar.current.style.transform = `scaleX(${p.toFixed(4)})`;
       const i = piezaEnProgreso(p, total);
       setStep((prev) => (prev === i ? prev : i));
+      if (zoom.current) {
+        if (piezas[i].id === zoom.current) arrived.current = true;
+        else if (arrived.current) unzoom(); // el usuario siguió bajando o subiendo
+      }
     };
+    let idle = 0;
     const on = () => {
       if (!raf) raf = requestAnimationFrame(read);
+      // si el scroll se detiene en otra pieza, se suelta el acercamiento
+      window.clearTimeout(idle);
+      idle = window.setTimeout(() => {
+        if (zoom.current && piezas[piezaEnProgreso(progress.current, total)].id !== zoom.current) unzoom();
+      }, 450);
     };
     read();
     window.addEventListener('scroll', on, { passive: true });
@@ -47,8 +68,9 @@ export default function Despiece({ slug, nombre }: { slug: string; nombre: strin
       window.removeEventListener('scroll', on);
       window.removeEventListener('resize', on);
       if (raf) cancelAnimationFrame(raf);
+      window.clearTimeout(idle);
     };
-  }, [gl, total]);
+  }, [gl, total, piezas, unzoom]);
 
   // En teléfono la barra de piezas se desliza: la pieza activa debe quedar a la vista
   const nav = useRef<HTMLElement>(null);
@@ -66,6 +88,24 @@ export default function Despiece({ slug, nombre }: { slug: string; nombre: strin
     const span = el.offsetHeight - window.innerHeight;
     window.scrollTo({ top: top + progresoDePieza(i, total) * span + 2, behavior: 'smooth' });
   };
+
+  /** Toque sobre una pieza (en el 3D o con el botón): acerca la cámara; un segundo toque la aleja. */
+  const pick = (id: PiezaId) => {
+    if (id === 'cabina') return;
+    if (zoom.current === id) {
+      unzoom();
+      return;
+    }
+    const i = piezas.findIndex((x) => x.id === id);
+    if (i < 0) return;
+    zoom.current = id;
+    arrived.current = piezaEnProgreso(progress.current, total) === i;
+    setZoomed(id);
+    if (!arrived.current) goTo(i);
+  };
+  const pickRef = useRef(pick);
+  pickRef.current = pick;
+  const onPick = useCallback((id: PiezaId) => pickRef.current(id), []);
 
   // Sin WebGL: las mismas piezas como lista, sin animación
   if (!gl) {
@@ -100,13 +140,13 @@ export default function Despiece({ slug, nombre }: { slug: string; nombre: strin
     <section className="despiece" ref={section} style={{ '--pasos': total } as CSSProperties} aria-label={`Despiece de ${nombre}`}>
       <div className="despiece__sticky">
         <Suspense fallback={null}>
-          <ExplodedGenset slug={slug} progress={progress} />
+          <ExplodedGenset slug={slug} progress={progress} zoom={zoom} onPick={onPick} />
         </Suspense>
 
         <div className="wrap despiece__ui">
           <header className="despiece__head">
             <h2 className="title">Por dentro</h2>
-            <p>{nombre}, pieza por pieza. Baja para abrirla.</p>
+            <p>{nombre}, pieza por pieza. Baja para abrirla y toca una pieza para acercarla.</p>
           </header>
 
           <article className="despiece__card" key={pieza.id} aria-live="polite">
@@ -125,6 +165,11 @@ export default function Despiece({ slug, nombre }: { slug: string; nombre: strin
                 ))}
               </dl>
             )}
+            {pieza.id !== 'cabina' && (
+              <button type="button" className="despiece__zoom" onClick={() => pick(pieza.id)} aria-pressed={zoomed === pieza.id}>
+                {zoomed === pieza.id ? 'Alejar' : 'Acercar pieza'}
+              </button>
+            )}
           </article>
         </div>
 
@@ -133,7 +178,16 @@ export default function Despiece({ slug, nombre }: { slug: string; nombre: strin
         <nav className="despiece__nav" aria-label="Piezas" ref={nav}>
           <i className="despiece__bar" ref={bar} aria-hidden="true" />
           {piezas.map((p, i) => (
-            <button key={p.id} type="button" className={i === step ? 'is-active' : ''} aria-current={i === step ? 'step' : undefined} onClick={() => goTo(i)}>
+            <button
+              key={p.id}
+              type="button"
+              className={i === step ? 'is-active' : ''}
+              aria-current={i === step ? 'step' : undefined}
+              onClick={() => {
+                unzoom();
+                goTo(i);
+              }}
+            >
               {p.nombre.replace(/ (N490D|QC490D|184ES|184F|SmartGen HGM4020N|ComAp AMF8)$/, '').replace(' de combustible', '').replace(' de arranque', '').replace(' de escape', '').replace(' silenciosa', '').replace(' y ventilador', '')}
             </button>
           ))}
